@@ -1,5 +1,3 @@
-<!-- MYSQLjunkie Coded By Bawantha Chanadula AKA ShanD -->
-<!-- Use wisely if victems server is created using mysql you can easily perform CURD functions using this -->
 <?php
 
 error_reporting(0);
@@ -13,10 +11,76 @@ session_start();
     <title>MYSQLjunkie</title>
     <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.7/paper/bootstrap.css" integrity="sha256-F57nvcuc/M42/hIkW4XQboIGmLlKxXpKN3oHLFY+v9M=" crossorigin="anonymous" /> -->
     <link rel="stylesheet" href="https://getbootstrap.com/docs/4.4/dist/css/bootstrap.min.css"/>
+    <script type="text/javascript">
+        function tableToCSV() {
+ 
+            // Variable to store the final csv data
+            var csv_data = [];
+ 
+            // Get each row data
+            var rows = document.getElementsByTagName('tr');
+            for (var i = 0; i < rows.length; i++) {
+ 
+                // Get each column data
+                var cols = rows[i].querySelectorAll('td,th');
+ 
+                // Stores each csv row data
+                var csvrow = [];
+                for (var j = 0; j < cols.length; j++) {
+ 
+                    // Get the text data of each cell
+                    // of a row and push it to csvrow
+                    csvrow.push(cols[j].innerText);
+                }
+ 
+                // Combine each column value with comma
+                csv_data.push(csvrow.join(","));
+            }
+ 
+            // Combine each row data with new line character
+            csv_data = csv_data.join('\n');
+ 
+            // Call this function to download csv file 
+            downloadCSVFile(csv_data);
+ 
+        }
+ 
+        function downloadCSVFile(csv_data) {
+ 
+            // Create CSV file object and feed
+            // our csv_data into it
+            CSVFile = new Blob([csv_data], {
+                type: "text/csv"
+            });
+ 
+            // Create to temporary link to initiate
+            // download process
+            var temp_link = document.createElement('a');
+ 
+            // Download csv file
+            temp_link.download = "<?php if (isset($_GET['table'])) { print(htmlspecialchars($_GET['table']));}else{ if (isset($_SESSION['Database'])) { print(htmlspecialchars($_SESSION['Database'])); }else{ print("SQLData"); }}?>.csv";
+            var url = window.URL.createObjectURL(CSVFile);
+            temp_link.href = url;
+ 
+            // This link should not be displayed
+            temp_link.style.display = "none";
+            document.body.appendChild(temp_link);
+ 
+            // Automatically click the link to
+            // trigger download
+            temp_link.click();
+            document.body.removeChild(temp_link);
+        }
+    </script>
   </head>
   <body>
 <div class="d-flex flex-column flex-md-row align-items-center p-3 px-md-4 mb-3 bg-white border-bottom shadow-sm">
 <h5 class="my-0 mr-md-auto font-weight-normal">MYSQL<b>junkie</b></h5>
+<nav class="my-2 my-md-0 mr-md-3">
+<button type="button" class="btn btn-outline-secondary" onclick="tableToCSV()">
+   Download Data
+</button>
+</nav>
 <nav class="my-2 my-md-0 mr-md-3">
   <form method="post">
   <input type="submit" class="btn btn-outline-secondary" value="Change Database" name="Change_DB">
@@ -28,7 +92,7 @@ session_start();
 </div>
     <div class="container-fluid">
       <ol class="breadcrumb mb-4">
-              <li class="breadcrumb-item"><a href="index.html">Dashboard</a></li>
+              <li class="breadcrumb-item"><a href="?">Dashboard</a></li>
               <li class="breadcrumb-item active">Charts</li>
                               </ol>
 <?php
@@ -39,12 +103,14 @@ session_start();
 //session Reset and page refresh
 if (isset($_REQUEST['Reset_Session'])) {
     session_destroy();
-    header("Refresh:0");
+    echo "<script>window.location = window.location.pathname; </script>";
+    // header("Refresh:0");
 }
 
 if (isset($_REQUEST['Change_DB'])) {
     unset($_SESSION["Database"]);
-    header("Refresh:0");
+    echo "<script>window.location = window.location.pathname; </script>";
+    // header("Refresh:0");
 }
 
 //setting creds to sessions
@@ -62,8 +128,10 @@ if (isset($_REQUEST['Database'])) {
 
 //Main Query Starts
 if (connect()) {
+
     //check if Database is selected or not
     if (isset($_SESSION['Database'])) {
+        //load table names and rows if database is selected
         load_basic_data();
     } else {
         $conn = connect();
@@ -97,9 +165,16 @@ function connect()
 function load_basic_data()
 {
     if (connect()) {
+        
         //set database
         $conn = connect();
         $conn->select_db($_SESSION['Database']);
+
+        if(isset($_GET['table'])){
+
+          get_all_data();
+
+        }else{
 
         //get all of the tables and rows
         $sql =  'SELECT table_name, table_rows
@@ -119,7 +194,7 @@ function load_basic_data()
         while ($rows = $res->fetch_assoc()) {
             ?>
                 <tr>
-                  <td><?php echo $rows['table_name'] ?></td>
+                  <td><a href="?table=<?php echo $rows['table_name'] ?>"><?php echo $rows['table_name'] ?></a></td>
                   <td><?php echo $rows['table_rows'] ?></td>
                 </tr>
               <?php
@@ -127,7 +202,53 @@ function load_basic_data()
               </tbody>
          </table>
 <?php
+      }  
+  }
+
+}
+
+function get_all_data(){
+
+  if (connect()) {
+    //set database
+    $conn = connect();
+    $conn->select_db($_SESSION['Database']);
+
+    //get all of the data from table
+    $sql =  'SELECT *
+             FROM  `'.$_GET['table'].'`';
+    
+    $sqlcolumns = 'SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = "'.$_SESSION['Database'].'" AND TABLE_NAME = "'.$_GET['table'].'" ;';
+
+    $queryResult1 = $conn->query($sqlcolumns);
+    echo "<table class=\"table\">";
+    echo "<thead>";
+    echo "<tr>";
+    while ($queryRow1 = $queryResult1->fetch_row()) {
+        for($i = 0; $i < $queryResult1->field_count; $i++){
+            echo "<th scope=\"col\">$queryRow1[$i]</th>";
+        }
     }
+    echo "</tr>";
+    echo "</thead>";
+
+    echo "<tbody>";
+
+    $queryResult = $conn->query($sql);
+    while ($queryRow = $queryResult->fetch_row()) {
+        echo "<tr>";
+        for($i = 0; $i < $queryResult->field_count; $i++){
+            echo "<td>$queryRow[$i]</td>";
+        }
+        echo "</tr>";
+    }
+    echo "</tbody>";
+    echo "</table>";
+    // $conn->close();
+
+  }
 }
 
 if (!isset($_SESSION['connection'])) {
